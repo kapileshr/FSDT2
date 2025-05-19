@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { supabase } from "../../supabaseClient";
+import { supabase } from "../supabaseClient";
 import { useNavigate } from "react-router-dom";
 import './Login.css';
+
 function Login() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -9,12 +10,16 @@ function Login() {
     password: '',
   });
 
+  const [loading, setLoading] = useState(false);
+
   const handleChange = (e) => {
-    setFormData({...formData, [e.target.name]: e.target.value});
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email: formData.email,
       password: formData.password,
@@ -22,7 +27,14 @@ function Login() {
 
     if (error) {
       alert(error.message);
+      setLoading(false);
     } else {
+      const { user } = data;
+      const name = user?.user_metadata?.name || "Unknown";
+      const role = user?.user_metadata?.role || "user";
+      console.log("Logged in as:", name, "Role:", role);
+
+      alert(`Welcome ${name}!`);
       navigate("/");
     }
   };
@@ -39,6 +51,7 @@ function Login() {
             value={formData.email}
             onChange={handleChange}
             className="login-input" 
+            required
           />
           <input 
             type="password" 
@@ -47,8 +60,11 @@ function Login() {
             value={formData.password}
             onChange={handleChange}
             className="login-input" 
+            required
           />
-          <button type="submit" className="login-button">Login</button>
+          <button type="submit" className="login-button" disabled={loading}>
+            {loading ? "Logging in..." : "Login"}
+          </button>
         </form>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { supabase } from "../supabaseClient";
 
 function Signup() {
   const navigate = useNavigate();
@@ -9,32 +10,36 @@ function Signup() {
     password: '',
     role: 'user',
   });
-  
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({...formData, [name]: value});
-  }
-  
+    setFormData({ ...formData, [name]: value });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    try {
-      const response = await fetch('http://localhost:5000/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-      const result = await response.json();
-      if(result.error) {
-        alert(result.error);
-      } else {
-        alert('Signup successful');
-        navigate('/login');
+
+    const { email, password, name, role } = formData;
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+          role
+        }
       }
-    } catch (error) {
-      console.error('Error during signup:', error);
+    });
+
+    if (error) {
+      alert(error.message);
+    } else {
+      alert('Signup successful! Please check your email to verify your account.');
+      navigate('/login');
     }
-  }
-  
+  };
+
   return (
     <div className="login-container">
       <div className="login-box">

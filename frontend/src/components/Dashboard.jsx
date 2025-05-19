@@ -1,25 +1,49 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Navbar from "./Navbar";
+import { supabase } from "../supabaseClient";
 import "./Dashboard.css";
 
 function Dashboard() {
   const [tasks, setTasks] = useState([]);
   const [inputValue, setInputValue] = useState("");
 
-  const handleSubmit = (e) => {
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
+  const fetchTasks = async () => {
+    const { data, error } = await supabase
+      .from("tasks")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (!error) setTasks(data);
+    else console.error("Fetch error:", error.message);
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (inputValue.trim() === "") return;
 
-    const newTask = {
-      id: Date.now(),
-      text: inputValue,
-      showDatePicker: false,
-      reminderDate: null,
-      isDeleted: false, // Flag to track deletion
-    };
+    const session = await supabase.auth.getSession();
+    const userEmail = session?.data?.session?.user?.email;
 
-    setTasks([...tasks, newTask]);
-    setInputValue("");
+    const { data, error } = await supabase.from("tasks").insert([
+      {
+        id: Date.now(),
+        text: inputValue,
+        is_deleted: false,
+        reminder_date: null,
+        email: userEmail, 
+      },
+    ]);
+
+    if (!error) {
+      setTasks([data[0], ...tasks]);
+      setInputValue("");
+    } else {
+      console.error("Insert error:", error.message);
+    }
   };
 
   const toggleDatePicker = (id) => {
@@ -32,24 +56,42 @@ function Dashboard() {
     );
   };
 
-  const setReminderDate = (id, date) => {
-    setTasks((prevTasks) =>
-      prevTasks.map((task) =>
-        task.id === id ? { ...task, reminderDate: date } : task
-      )
-    );
+  const setReminderDate = async (id, date) => {
+    const { data, error } = await supabase
+      .from("tasks")
+      .update({ reminder_date: date })
+      .eq("id", id);
+
+    if (!error) {
+      setTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task.id === id ? { ...task, reminder_date: date } : task
+        )
+      );
+    } else {
+      console.error("Reminder update error:", error.message);
+    }
   };
 
-  const deleteTask = (id) => {
-    setTasks((prevTasks) =>
-      prevTasks.map((task) =>
-        task.id === id ? { ...task, isDeleted: true } : task
-      )
-    );
+  const deleteTask = async (id) => {
+    const { error } = await supabase
+      .from("tasks")
+      .update({ is_deleted: true })
+      .eq("id", id);
+
+    if (!error) {
+      setTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task.id === id ? { ...task, is_deleted: true } : task
+        )
+      );
+    } else {
+      console.error("Delete error:", error.message);
+    }
   };
 
   const getCurrentDateTime = () => {
-    return new Date().toISOString().slice(0, 16); // "YYYY-MM-DDTHH:mm"
+    return new Date().toISOString().slice(0, 16);
   };
 
   return (
@@ -69,42 +111,39 @@ function Dashboard() {
         </form>
 
         <ul className="task-list">
-          {tasks.map((task) => (
-            <li
-              key={task.id}
-              className={`task-item ${task.isDeleted ? "deleted" : ""}`}
-            >
-              <div>
-                <span>{task.text}</span>
-                <button onClick={() => toggleDatePicker(task.id)}>
-                  Reminder
-                </button>
-                {task.showDatePicker && (
-                  <input
-                    type="datetime-local"
-                    onChange={(e) =>
-                      setReminderDate(task.id, e.target.value)
-                    }
-                    value={task.reminderDate || ""}
-                    min={getCurrentDateTime()}
-                    className={
-                      task.reminderDate &&
-                      new Date(task.reminderDate) < new Date()
-                        ? "past"
-                        : ""
-                    }
-                  />
-                )}
-                <button onClick={() => deleteTask(task.id)}>Delete</button>
-                {task.reminderDate && (
-                  <div className="reminder-date">
-                    Reminder set for:{" "}
-                    {new Date(task.reminderDate).toLocaleString()}
-                  </div>
-                )}
-              </div>
-            </li>
-          ))}
+          {tasks.map((task) =>
+            !task.is_deleted ? (
+              <li key={task.id} className="task-item">
+                <div>
+                  <span>{task.text}</span>
+                  <button onClick={() => toggleDatePicker(task.id)}>
+                    Reminder
+                  </button>
+                  {task.showDatePicker && (
+                    <input
+                      type="datetime-local"
+                      onChange={(e) => setReminderDate(task.id, e.target.value)}
+                      value={task.reminder_date || ""}
+                      min={getCurrentDateTime()}
+                      className={
+                        task.reminder_date &&
+                        new Date(task.reminder_date) < new Date()
+                          ? "past"
+                          : ""
+                      }
+                    />
+                  )}
+                  <button onClick={() => deleteTask(task.id)}>Delete</button>
+                  {task.reminder_date && (
+                    <div className="reminder-date">
+                      Reminder set for:{" "}
+                      {new Date(task.reminder_date).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+              </li>
+            ) : null
+          )}
         </ul>
       </div>
     </div>
